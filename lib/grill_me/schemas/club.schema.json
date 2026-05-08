@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sofiengwin/grill-me-agent/schemas/club.schema.json",
+  "title": "ClubArtifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "club",
+    "as_of",
+    "window_years",
+    "researched_at",
+    "status",
+    "counts",
+    "players",
+    "failed_players"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "club": { "$ref": "#/$defs/club" },
+    "as_of": { "type": "string", "format": "date" },
+    "window_years": { "type": "integer", "minimum": 1, "maximum": 100 },
+    "researched_at": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["complete", "partial"] },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["success", "failed"],
+      "properties": {
+        "success": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "players": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/player" }
+    },
+    "failed_players": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/failed_player" }
+    }
+  },
+  "$defs": {
+    "club": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "country"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "country": { "type": "string", "minLength": 1 },
+        "league": { "type": ["string", "null"] },
+        "wikidata_id": {
+          "type": ["string", "null"],
+          "pattern": "^Q[0-9]+$"
+        },
+        "wikipedia_url": {
+          "type": ["string", "null"],
+          "format": "uri"
+        }
+      }
+    },
+    "player": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "club_name",
+        "club_country",
+        "club_league",
+        "start",
+        "end",
+        "appearances",
+        "confidence",
+        "sources"
+      ],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "wikidata_id": {
+          "type": ["string", "null"],
+          "pattern": "^Q[0-9]+$"
+        },
+        "wikipedia_url": {
+          "type": ["string", "null"],
+          "format": "uri"
+        },
+        "club_name": { "type": "string", "minLength": 1 },
+        "club_country": { "type": "string", "minLength": 1 },
+        "club_league": { "type": ["string", "null"] },
+        "start": { "$ref": "#/$defs/partial_date" },
+        "end": { "$ref": "#/$defs/partial_date_or_null" },
+        "appearances": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "confidence": { "enum": ["low", "medium", "high"] },
+        "sources": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" }
+        }
+      }
+    },
+    "failed_player": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "reason"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "partial_date": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9]{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12][0-9]|3[01]))?)?$"
+    },
+    "partial_date_or_null": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9]{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12][0-9]|3[01]))?)?$"
+    }
+  }
+}

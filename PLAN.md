@@ -33,7 +33,7 @@ layout, and a phased build plan. It is the source of truth for `prompt.md`.
 | 11 | Errors | Retry transient HTTP/LLM (3 attempts, exponential backoff) and JSON-schema validation failures (2 corrective retries). Per-unit isolation: failed player → `failed_players[]`; failed roster → `out/<slug>.error.json`. `--force` overrides skip-if-exists. `--retry-failed` reruns just `failed_players`. |
 | 12 | Testing | RSpec. Unit tests for tools/assembler/schema/trace/cache/CLI. VCR cassettes for HTTP. LLM replay reuses the cache. One E2E smoke test. Live tests gated on `LIVE=1`. Evals deferred. |
 | 13 | Output schema | Per-stint rows. Variable-precision date strings (`"1999"`, `"1999-08"`, `"1999-08-03"`). `null` for missing fields. Mandatory `confidence` + `sources[]` per player. Hard schema validation via `json_schemer`. |
-| 14 | Ruby & gems | Ruby 3.3.x. `langchainrb ~> 0.19`, `ruby-openai ~> 7.4` (verify against langchainrb 0.19), `faraday ~> 2.9`, `faraday-retry ~> 2.2`, `nokogiri ~> 1.16`, `wikipedia-client ~> 1.17`, `sparql-client ~> 3.3`, `concurrent-ruby ~> 1.3`, `thor ~> 1.3`, `json_schemer ~> 2.3`. Dev: `rspec`, `vcr`, `webmock`, `rubocop`, `pry`. |
+| 14 | Ruby & gems | Ruby 3.4.8 (managed via asdf, pinned in .ruby-version). `langchainrb ~> 0.19`, `ruby-openai ~> 7.4` (verify against langchainrb 0.19), `faraday ~> 2.9`, `faraday-retry ~> 2.2`, `nokogiri ~> 1.16`, `wikipedia-client ~> 1.17`, `sparql-client ~> 3.3`, `concurrent-ruby ~> 1.3`, `thor ~> 1.3`, `json_schemer ~> 2.3`. Dev: `rspec`, `vcr`, `webmock`, `rubocop`, `pry`. |
 | 15 | Config | Env vars only. Layered: CLI flag > `GRILL_ME_*` env var > built-in default. Required keys (`OPENAI_API_KEY`, `BRAVE_SEARCH_API_KEY`) validated at startup. **No `.env` file, no YAML config.** |
 | 16 | Prompts | ERB-templated Markdown under `lib/grill_me/prompts/`. `version:` field at the top of each file; trace records `prompt_version`. |
 
@@ -82,7 +82,7 @@ layout, and a phased build plan. It is the source of truth for `prompt.md`.
 │   └── e2e/                        # one smoke test running the binary
 ├── Gemfile
 ├── Gemfile.lock
-├── .ruby-version                   # 3.3.x
+├── .ruby-version                   # 3.4.8
 ├── .rubocop.yml
 ├── .gitignore                      # .cache/, out/, *.local
 ├── PLAN.md                         # this file
