@@ -10,7 +10,18 @@ module GrillMe
 
     class << self
       def club
-        @club ||= JSONSchemer.schema(JSON.parse(File.read(SCHEMA_PATH)))
+        @club ||= JSONSchemer.schema(raw_schema)
+      end
+
+      # The player sub-schema, resolved out of $defs so callers can validate
+      # a single player record returned by the Player Agent in isolation.
+      # The full $defs map travels along with the sub-schema so the
+      # `#/$defs/partial_date` references inside the player schema still
+      # resolve when validated standalone.
+      def player
+        @player ||= JSONSchemer.schema(
+          raw_schema.fetch("$defs").fetch("player").merge("$defs" => raw_schema.fetch("$defs"))
+        )
       end
 
       def validate_club!(artifact)
@@ -24,7 +35,19 @@ module GrillMe
         club.valid?(artifact)
       end
 
+      def player_errors(record)
+        player.validate(record).to_a
+      end
+
+      def valid_player?(record)
+        player.valid?(record)
+      end
+
       private
+
+      def raw_schema
+        @raw_schema ||= JSON.parse(File.read(SCHEMA_PATH))
+      end
 
       def format_errors(errors)
         lines = errors.first(10).map do |err|

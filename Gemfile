@@ -13,3 +13,17 @@ group :development, :test do
   gem "rubocop", "~> 1.65", require: false
   gem "rubocop-rspec", "~> 3.0", require: false
 end
+
+gem "langchainrb", "~> 0.19"
+
+gem "ruby-openai", "~> 7.4"
+
+gem "wikipedia-client", "~> 1.17"
+
+gem "faraday", "~> 2.9"
+
+gem "faraday-retry", "~> 2.2"
+
+gem "vcr", "~> 6.3", groups: %i[development test]
+
+gem "webmock", "~> 3.23", groups: %i[development test]
