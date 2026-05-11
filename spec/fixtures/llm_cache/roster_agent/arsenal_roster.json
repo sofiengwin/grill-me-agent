@@ -1,0 +1,73 @@
+[
+  {
+    "id": "chatcmpl-roster-1",
+    "object": "chat.completion",
+    "created": 1715000000,
+    "model": "gpt-4o-mini",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_roster_1",
+              "type": "function",
+              "function": {
+                "name": "wikipedia_search__search",
+                "arguments": "{\"query\":\"Arsenal football club players\"}"
+              }
+            }
+          ]
+        },
+        "finish_reason": "tool_calls"
+      }
+    ],
+    "usage": { "prompt_tokens": 200, "completion_tokens": 20, "total_tokens": 220 }
+  },
+  {
+    "id": "chatcmpl-roster-2",
+    "object": "chat.completion",
+    "created": 1715000001,
+    "model": "gpt-4o-mini",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_roster_2",
+              "type": "function",
+              "function": {
+                "name": "wikipedia_page__fetch",
+                "arguments": "{\"title\":\"List of Arsenal F.C. players\"}"
+              }
+            }
+          ]
+        },
+        "finish_reason": "tool_calls"
+      }
+    ],
+    "usage": { "prompt_tokens": 400, "completion_tokens": 20, "total_tokens": 420 }
+  },
+  {
+    "id": "chatcmpl-roster-3",
+    "object": "chat.completion",
+    "created": 1715000002,
+    "model": "gpt-4o-mini",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "[{\"name\":\"Thierry Henry\",\"wikidata_id\":null,\"wikipedia_url\":\"https://en.wikipedia.org/wiki/Thierry_Henry\"},{\"name\":\"Dennis Bergkamp\",\"wikidata_id\":null,\"wikipedia_url\":\"https://en.wikipedia.org/wiki/Dennis_Bergkamp\"},{\"name\":\"Patrick Vieira\",\"wikidata_id\":null,\"wikipedia_url\":\"https://en.wikipedia.org/wiki/Patrick_Vieira\"}]"
+        },
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": { "prompt_tokens": 800, "completion_tokens": 80, "total_tokens": 880 }
+  }
+]
