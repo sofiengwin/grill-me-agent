@@ -10,16 +10,19 @@ module GrillMe
     DEFAULTS = {
       window_years: 20,
       concurrency: 5,
-      log_level: "info"
+      log_level: "info",
+      brave_qps: 1.0
     }.freeze
 
-    attr_reader :window_years, :concurrency, :log_level
+    attr_reader :window_years, :concurrency, :log_level, :brave_qps
 
     def initialize(env: ENV, overrides: {})
       @env = env
       @window_years = pick(:window_years, overrides, "WINDOW_YEARS", :to_i)
       @concurrency = pick(:concurrency, overrides, "CONCURRENCY", :to_i)
       @log_level = pick(:log_level, overrides, "LOG_LEVEL", :to_s)
+      @brave_qps = pick(:brave_qps, overrides, "BRAVE_QPS", :to_f)
+      validate_brave_qps!
     end
 
     def validate_required_env!
@@ -38,6 +41,12 @@ module GrillMe
     end
 
     private
+
+    def validate_brave_qps!
+      return if @brave_qps.is_a?(Numeric) && @brave_qps.positive?
+
+      raise ConfigError, "brave_qps must be a positive number (got #{@brave_qps.inspect})"
+    end
 
     def pick(key, overrides, env_suffix, coerce)
       raw = overrides[key]
