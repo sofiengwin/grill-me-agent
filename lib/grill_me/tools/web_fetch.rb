@@ -1,0 +1,115 @@
+require "faraday"
+require "faraday/follow_redirects"
+require "json"
+require "langchain"
+require "nokogiri"
+
+module GrillMe
+  module Tools
+    # Langchain tool that fetches an arbitrary URL, parses the HTML with
+    # Nokogiri, and returns a `{ url, title, text }` payload with the
+    # readable body text truncated to ~12k chars. Network and parse
+    # failures are surfaced as `{ "error": "..." }` payloads rather than
+    # raising, so the agent loop can recover and try a different URL.
+    class WebFetch
+      extend Langchain::ToolDefinition
+
+      MAX_CONTENT_CHARS = 12_000
+      TIMEOUT_SECONDS = 30
+      MAX_REDIRECTS = 5
+
+      # Override the auto-derived snake_case class name so the LLM sees
+      # the friendlier tool surface "web_fetch__fetch" rather than the
+      # namespaced "grill_me_tools_web_fetch__fetch".
+      def self.tool_name
+        "web_fetch"
+      end
+
+      define_function :fetch,
+                      description: "Fetch a URL and return its title plus readable text " \
+                                   "content. Use this after web_search to read the contents " \
+                                   "of a promising result page." do
+        property :url, type: "string",
+                       description: "Absolute http(s) URL to fetch (URI).",
+                       required: true
+      end
+
+      def initialize(connection: nil)
+        @connection = connection || default_connection
+      end
+
+      def fetch(url:)
+        response = @connection.get(url)
+
+        unless response.success?
+          return error_response("http_#{response.status}", url)
+        end
+
+        title, text = parse_html(response.body.to_s)
+        truncated_text, was_truncated = truncate(text)
+        text_payload = was_truncated ? "#{truncated_text}\n[...truncated]" : truncated_text
+
+        tool_response(content: JSON.generate(
+          "url" => url,
+          "title" => title,
+          "text" => text_payload
+        ))
+      rescue Faraday::TimeoutError => e
+        error_response("timeout", url, e.message)
+      rescue Faraday::ConnectionFailed => e
+        error_response("connection_failed", url, e.message)
+      rescue Faraday::Error => e
+        error_response("faraday_error", url, e.message)
+      rescue StandardError => e
+        error_response("parse_error", url, e.message)
+      end
+
+      private
+
+      def default_connection
+        Faraday.new do |f|
+          f.response :follow_redirects, limit: MAX_REDIRECTS
+          f.options.timeout = TIMEOUT_SECONDS
+          f.options.open_timeout = TIMEOUT_SECONDS
+          f.adapter Faraday.default_adapter
+        end
+      end
+
+      # Parses the HTML and returns `[title, text]`. The title prefers the
+      # document `<title>` and falls back to the first `<h1>`, defaulting
+      # to an empty string when neither is present. The text is the visible
+      # body content with `<script>` and `<style>` removed and whitespace
+      # collapsed to single spaces so the LLM gets compact, readable prose.
+      def parse_html(html)
+        doc = Nokogiri::HTML(html)
+        [extract_title(doc), extract_text(doc)]
+      end
+
+      def extract_title(doc)
+        title = doc.at_css("title")&.text&.strip
+        return title if title && !title.empty?
+
+        h1 = doc.at_css("h1")&.text&.strip
+        h1 || ""
+      end
+
+      def extract_text(doc)
+        doc.css("script, style, noscript").remove
+        body = doc.at_css("body") || doc
+        body.text.gsub(/\s+/, " ").strip
+      end
+
+      def truncate(str, limit = MAX_CONTENT_CHARS)
+        return [str, false] if str.length <= limit
+
+        [str[0, limit], true]
+      end
+
+      def error_response(code, url, message = nil)
+        payload = { "error" => code, "url" => url }
+        payload["message"] = message if message
+        tool_response(content: JSON.generate(payload))
+      end
+    end
+  end
+end
