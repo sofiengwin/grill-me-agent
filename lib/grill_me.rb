@@ -6,8 +6,10 @@ module GrillMe
   class ConfigError < Error; end
   class InputError < Error; end
   class SchemaError < Error; end
+  class WindowError < Error; end
 end
 
+require "grill_me/window"
 require "grill_me/config"
 require "grill_me/input"
 require "grill_me/schema"
