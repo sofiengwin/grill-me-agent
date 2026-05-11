@@ -1,3 +1,5 @@
+require "date"
+
 module GrillMe
   # Resolves configuration in priority order:
   #   CLI flag > GRILL_ME_* env var > built-in default
@@ -14,7 +16,9 @@ module GrillMe
       brave_qps: 1.0
     }.freeze
 
-    attr_reader :window_years, :concurrency, :log_level, :brave_qps
+    AS_OF_PATTERN = /^\d{4}-\d{2}-\d{2}$/.freeze
+
+    attr_reader :window_years, :concurrency, :log_level, :brave_qps, :as_of
 
     def initialize(env: ENV, overrides: {})
       @env = env
@@ -22,7 +26,15 @@ module GrillMe
       @concurrency = pick(:concurrency, overrides, "CONCURRENCY", :to_i)
       @log_level = pick(:log_level, overrides, "LOG_LEVEL", :to_s)
       @brave_qps = pick(:brave_qps, overrides, "BRAVE_QPS", :to_f)
+      @as_of = pick_optional(:as_of, overrides, "AS_OF")
       validate_brave_qps!
+      validate_as_of!
+    end
+
+    def as_of_date
+      return nil if @as_of.nil? || @as_of.empty?
+
+      Date.parse(@as_of)
     end
 
     def validate_required_env!
@@ -48,11 +60,26 @@ module GrillMe
       raise ConfigError, "brave_qps must be a positive number (got #{@brave_qps.inspect})"
     end
 
+    def validate_as_of!
+      return if @as_of.nil? || @as_of.empty?
+      return if @as_of.match?(AS_OF_PATTERN)
+
+      raise ConfigError, "as_of must be YYYY-MM-DD format"
+    end
+
     def pick(key, overrides, env_suffix, coerce)
       raw = overrides[key]
       raw = @env["GRILL_ME_#{env_suffix}"] if raw.nil? || raw.to_s.empty?
       raw = DEFAULTS.fetch(key) if raw.nil? || raw.to_s.empty?
       raw.send(coerce)
+    end
+
+    def pick_optional(key, overrides, env_suffix)
+      raw = overrides[key]
+      raw = @env["GRILL_ME_#{env_suffix}"] if raw.nil? || raw.to_s.empty?
+      return nil if raw.nil? || raw.to_s.empty?
+
+      raw.to_s
     end
 
     def friendly_missing_message(missing)

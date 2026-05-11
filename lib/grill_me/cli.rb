@@ -1,4 +1,5 @@
 require "thor"
+require "date"
 
 module GrillMe
   # Thor-based CLI entrypoint. The `research` subcommand runs the
@@ -20,14 +21,21 @@ module GrillMe
     option :concurrency, type: :numeric, desc: "Player-agent concurrency (default 5)"
     option :log_level, type: :string, desc: "debug|info|warn|error"
     option :model, type: :string, desc: "OpenAI chat model (default gpt-4o-mini)"
+    option :as_of, type: :string, desc: "Override reference date YYYY-MM-DD"
     def research(club_arg = nil)
       overrides = {
         window_years: options[:window_years],
         concurrency: options[:concurrency],
-        log_level: options[:log_level]
+        log_level: options[:log_level],
+        as_of: options[:as_of]
       }.compact
 
-      config = Config.new(overrides: overrides)
+      begin
+        config = Config.new(overrides: overrides)
+      rescue ConfigError => e
+        warn(e.message)
+        exit(2)
+      end
       logger = Log.build(level: config.log_level)
 
       begin
@@ -67,7 +75,8 @@ module GrillMe
         end
       end
 
-      assembler = Assembler.new(config: config)
+      window = GrillMe::Window.new(as_of: config.as_of_date || Date.today, years: config.window_years)
+      assembler = Assembler.new(config: config, window: window)
       artifact = assembler.build(club: club, players: players, failed_players: failed_players)
       Schema.validate_club!(artifact)
 

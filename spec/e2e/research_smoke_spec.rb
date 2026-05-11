@@ -44,4 +44,22 @@ RSpec.describe "bin/grill-me research", type: :e2e do
       expect(stderr).to include("OPENAI_API_KEY")
     end
   end
+
+  it "fails fast with exit 2 when --as-of is malformed" do
+    Dir.mktmpdir do |dir|
+      _stdout, stderr, status = Open3.capture3(env, "ruby", bin, "research", "Arsenal",
+                                               "--country", "England",
+                                               "--as-of", "not-a-date",
+                                               "--out", "#{dir}/")
+      expect(status.exitstatus).to eq(2)
+      expect(stderr).to include("as_of must be YYYY-MM-DD format")
+    end
+  end
+
+  it "lists --as-of in research help output" do
+    _stdout, stderr, status = Open3.capture3(env, "ruby", bin, "help", "research")
+    combined = _stdout + stderr
+    expect(status.exitstatus).to eq(0)
+    expect(combined).to match(/--as[-_]of/)
+  end
 end

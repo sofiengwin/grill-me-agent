@@ -28,6 +28,36 @@ RSpec.describe GrillMe::Config do
     end
   end
 
+  describe "as_of" do
+    it "defaults to nil when not provided" do
+      config = described_class.new(env: full_env)
+      expect(config.as_of).to be_nil
+      expect(config.as_of_date).to be_nil
+    end
+
+    it "accepts a YYYY-MM-DD override and parses it as a Date" do
+      config = described_class.new(env: full_env, overrides: { as_of: "2025-01-15" })
+      expect(config.as_of).to eq("2025-01-15")
+      expect(config.as_of_date).to eq(Date.new(2025, 1, 15))
+    end
+
+    it "reads from GRILL_ME_AS_OF env var" do
+      env = full_env.merge("GRILL_ME_AS_OF" => "2024-06-01")
+      config = described_class.new(env: env)
+      expect(config.as_of_date).to eq(Date.new(2024, 6, 1))
+    end
+
+    it "raises ConfigError for malformed as_of" do
+      expect { described_class.new(env: full_env, overrides: { as_of: "not-a-date" }) }
+        .to raise_error(GrillMe::ConfigError, /as_of must be YYYY-MM-DD format/)
+    end
+
+    it "raises ConfigError for partial date precision" do
+      expect { described_class.new(env: full_env, overrides: { as_of: "2025-01" }) }
+        .to raise_error(GrillMe::ConfigError, /as_of must be YYYY-MM-DD format/)
+    end
+  end
+
   describe "#validate_required_env!" do
     it "passes when all required keys are present" do
       expect { described_class.new(env: full_env).validate_required_env! }.not_to raise_error
