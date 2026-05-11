@@ -1,15 +1,12 @@
 require "thor"
 
 module GrillMe
-  # Thor-based CLI entrypoint. Slice 2 wires the `research` subcommand up
-  # to one real `PlayerAgent` invocation. The roster step (slice 3+) and
-  # multi-club input (slice 11) still come later, so the agent input is
-  # hardcoded to Thierry Henry / Arsenal for now.
+  # Thor-based CLI entrypoint. The `research` subcommand runs the
+  # `RosterAgent` to discover players for the club, then sequentially
+  # runs `PlayerAgent` for each discovered player, and finally hands the
+  # results to `Assembler` for the final artifact.
   class CLI < Thor
     package_name "grill-me"
-
-    HARDCODED_PLAYER_NAME = "Thierry Henry".freeze
-    HARDCODED_PLAYER_CLUB = "Arsenal".freeze
 
     def self.exit_on_failure?
       true
@@ -43,10 +40,35 @@ module GrillMe
       club = Input.from_args(name: club_arg || options[:club], country: options[:country])
       logger.info("starting research club=#{club.name.inspect} country=#{club.country.inspect}")
 
-      players, failed = run_player_agent(club: club, config: config, logger: logger)
+      llm = Llm.build(
+        model: options[:model] || Llm::DEFAULT_MODEL,
+        api_key: config.openai_api_key
+      )
+
+      roster_agent = Agents::RosterAgent.new(
+        llm: llm,
+        tools: [Tools::WikipediaSearch.new, Tools::WikipediaPage.new]
+      )
+      roster = roster_agent.run(club_name: club.name, club_country: club.country)
+      logger.info("roster discovered club=#{club.name.inspect} size=#{roster.size}")
+
+      players = []
+      failed_players = []
+      roster.each do |player|
+        player_name = player["name"]
+        player_agent = Agents::PlayerAgent.new(llm: llm, tools: [Tools::WikipediaPage.new])
+        logger.info("player agent name=#{player_name.inspect} club=#{club.name.inspect}")
+        begin
+          record = player_agent.run(player_name: player_name, club_name: club.name, club_country: club.country)
+          players << record
+        rescue Agents::PlayerAgent::AgentError => e
+          logger.warn("player agent failed name=#{player_name.inspect} reason=#{e.message}")
+          failed_players << { "name" => player_name, "reason" => e.message }
+        end
+      end
 
       assembler = Assembler.new(config: config)
-      artifact = assembler.build(club: club, players: players, failed_players: failed)
+      artifact = assembler.build(club: club, players: players, failed_players: failed_players)
       Schema.validate_club!(artifact)
 
       path = Output.new(logger: logger).write(artifact: artifact, destination: options[:out])
@@ -59,24 +81,6 @@ module GrillMe
     desc "version", "Print the gem version"
     def version
       puts GrillMe::VERSION
-    end
-
-    no_commands do
-      def run_player_agent(club:, config:, logger:)
-        return [[], []] unless club.name.casecmp(HARDCODED_PLAYER_CLUB).zero?
-
-        llm = Llm.build(
-          model: options[:model] || Llm::DEFAULT_MODEL,
-          api_key: config.openai_api_key
-        )
-        agent = Agents::PlayerAgent.new(llm: llm)
-        logger.info("player agent name=#{HARDCODED_PLAYER_NAME.inspect} club=#{club.name.inspect}")
-        record = agent.run(player_name: HARDCODED_PLAYER_NAME, club_name: club.name, club_country: club.country)
-        [[record], []]
-      rescue Agents::PlayerAgent::AgentError => e
-        logger.warn("player agent failed name=#{HARDCODED_PLAYER_NAME.inspect} reason=#{e.message}")
-        [[], [{ "name" => HARDCODED_PLAYER_NAME, "reason" => e.message }]]
-      end
     end
   end
 end

@@ -27,3 +27,6 @@ gem "faraday-retry", "~> 2.2"
 gem "vcr", "~> 6.3", groups: %i[development test]
 
 gem "webmock", "~> 3.23", groups: %i[development test]
+
+gem "nokogiri", "~> 1.19"
+gem "faraday-follow_redirects", "~> 0.5.0"
