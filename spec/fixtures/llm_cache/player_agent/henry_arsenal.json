@@ -1,0 +1,46 @@
+[
+  {
+    "id": "chatcmpl-replay-1",
+    "object": "chat.completion",
+    "created": 1715000000,
+    "model": "gpt-4o-mini",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_replay_1",
+              "type": "function",
+              "function": {
+                "name": "wikipedia_page__fetch",
+                "arguments": "{\"title\":\"Thierry Henry\"}"
+              }
+            }
+          ]
+        },
+        "finish_reason": "tool_calls"
+      }
+    ],
+    "usage": { "prompt_tokens": 200, "completion_tokens": 20, "total_tokens": 220 }
+  },
+  {
+    "id": "chatcmpl-replay-2",
+    "object": "chat.completion",
+    "created": 1715000001,
+    "model": "gpt-4o-mini",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "{\"name\":\"Thierry Henry\",\"wikidata_id\":null,\"wikipedia_url\":\"https://en.wikipedia.org/wiki/Thierry_Henry\",\"club_name\":\"Arsenal\",\"club_country\":\"England\",\"club_league\":\"Premier League\",\"start\":\"1999-08\",\"end\":\"2007-06\",\"appearances\":254,\"confidence\":\"high\",\"sources\":[\"https://en.wikipedia.org/wiki/Thierry_Henry\"]}"
+        },
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": { "prompt_tokens": 800, "completion_tokens": 80, "total_tokens": 880 }
+  }
+]

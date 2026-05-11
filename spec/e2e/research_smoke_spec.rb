@@ -12,7 +12,12 @@ RSpec.describe "bin/grill-me research", type: :e2e do
     }
   end
 
-  it "produces a schema-valid JSON file end-to-end" do
+  # Slice 2 swaps the hardcoded record for a real PlayerAgent run, which
+  # in turn calls OpenAI. Wiring VCR into a forked binary process is
+  # slice-10 work (per PLAN §10), so the full end-to-end smoke test only
+  # runs under LIVE=1 today; the PlayerAgent integration spec covers the
+  # cassette+replay path that CI exercises.
+  it "produces a schema-valid JSON file end-to-end", :live do
     Dir.mktmpdir do |dir|
       out_dir = "#{dir}/"
       stdout, stderr, status = Open3.capture3(env, "ruby", bin, "research", "Arsenal", "--country", "England", "--out",

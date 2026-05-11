@@ -1,0 +1,19 @@
+{
+  "query": {
+    "pages": {
+      "11930": {
+        "pageid": 11930,
+        "ns": 0,
+        "title": "Thierry Henry",
+        "fullurl": "https://en.wikipedia.org/wiki/Thierry_Henry",
+        "editurl": "https://en.wikipedia.org/w/index.php?title=Thierry_Henry&action=edit",
+        "extract": "Thierry Daniel Henry is a French professional football coach and former player. He is widely regarded as one of the greatest strikers of all time.\n\n== Club career ==\nHenry signed for Arsenal in 1999. He scored 228 goals in 377 appearances and won two Premier League titles.\n\n== International career ==\nHenry won the FIFA World Cup with France in 1998 and the UEFA European Championship in 2000.\n\n== Honours ==\nArsenal: Premier League 2001-02, 2003-04",
+        "revisions": [
+          {
+            "*": "{{Infobox football biography\n| name        = Thierry Henry\n| birth_date  = 1977-08-17\n| birth_place = [[Les Ulis]], France\n| height      = 1.88 m\n| position    = [[Forward (association football)|Forward]]\n| years1      = 1999-2007\n| clubs1      = [[Arsenal F.C.|Arsenal]]\n| caps1       = 254\n| goals1      = 174\n}}\nThierry Henry is a French former player.\n"
+          }
+        ]
+      }
+    }
+  }
+}
