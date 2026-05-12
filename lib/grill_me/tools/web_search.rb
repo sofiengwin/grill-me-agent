@@ -59,18 +59,19 @@ module GrillMe
       def search(query:, max_results: DEFAULT_MAX_RESULTS)
         count = clamp_count(max_results)
 
-        if @cache
-          @cache.fetch(self.class.tool_name, { query: query, count: count }) { perform_search(query, count) }
+        data = if @cache
+          @cache.fetch(self.class.tool_name, { query: query, count: count }) { do_search(query, count) }
         else
-          perform_search(query, count)
+          do_search(query, count)
         end
+        tool_response(content: JSON.generate(data))
       end
 
       private
 
-      def perform_search(query, count)
+      def do_search(query, count)
         if @api_key.nil? || @api_key.to_s.strip.empty?
-          return error_response("missing_api_key", "BRAVE_SEARCH_API_KEY not set")
+          return error_payload("missing_api_key", "BRAVE_SEARCH_API_KEY not set")
         end
 
         throttle!
@@ -83,19 +84,18 @@ module GrillMe
         end
 
         unless response.success?
-          return error_response("http_#{response.status}", response.body.to_s[0, 500])
+          return error_payload("http_#{response.status}", response.body.to_s[0, 500])
         end
 
-        results = parse_results(response.body)
-        tool_response(content: JSON.generate(results))
+        parse_results(response.body)
       rescue Faraday::TimeoutError => e
-        error_response("timeout", e.message)
+        error_payload("timeout", e.message)
       rescue Faraday::ConnectionFailed => e
-        error_response("connection_failed", e.message)
+        error_payload("connection_failed", e.message)
       rescue Faraday::Error => e
-        error_response("network_error", e.message)
+        error_payload("network_error", e.message)
       rescue JSON::ParserError => e
-        error_response("invalid_response", e.message)
+        error_payload("invalid_response", e.message)
       end
 
       def clamp_count(max_results)
@@ -149,10 +149,10 @@ module GrillMe
         end
       end
 
-      def error_response(error, detail = nil)
+      def error_payload(error, detail = nil)
         payload = { "error" => error }
         payload["detail"] = detail if detail && !detail.empty?
-        tool_response(content: JSON.generate(payload))
+        payload
       end
     end
   end

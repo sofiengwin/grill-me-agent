@@ -36,29 +36,29 @@ module GrillMe
       end
 
       def fetch(title:)
-        if @cache
-          @cache.fetch(self.class.tool_name, { title: title }) { perform_fetch(title) }
+        data = if @cache
+          @cache.fetch(self.class.tool_name, { title: title }) { do_fetch(title) }
         else
-          perform_fetch(title)
+          do_fetch(title)
         end
+        tool_response(content: JSON.generate(data))
       end
 
       private
 
-      def perform_fetch(title)
+      def do_fetch(title)
         page = @client.find(title)
         if page.nil? || page.text.nil? || page.text.empty?
-          return tool_response(content: JSON.generate("error" => "page not found", "title" => title))
+          return { "error" => "page not found", "title" => title }
         end
 
-        payload = {
+        {
           "title" => page.title,
           "url" => page.fullurl,
           "summary" => truncate(page.summary.to_s),
           "sections" => parse_sections(page.text.to_s),
           "infobox" => extract_infobox(page.content.to_s)
         }
-        tool_response(content: JSON.generate(payload))
       end
 
       def truncate(str, limit = MAX_CONTENT_CHARS)

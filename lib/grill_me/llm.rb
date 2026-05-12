@@ -76,7 +76,15 @@ module GrillMe
           tools: tools&.map { |t| t.class.respond_to?(:tool_name) ? t.class.tool_name : t.class.name }
         }
 
-        @cache.fetch("llm", key_parts) { @llm.chat(messages: messages, tools: tools, **kwargs) }
+        if @cache
+          raw_result = @cache.fetch("llm", key_parts) do
+            response = @llm.chat(messages: messages, tools: tools, **kwargs)
+            response.respond_to?(:raw_response) ? response.raw_response : response
+          end
+          Langchain::LLM::OpenAIResponse.new(raw_result)
+        else
+          @llm.chat(messages: messages, tools: tools, **kwargs)
+        end
       end
 
       def respond_to_missing?(name, include_private = false)
