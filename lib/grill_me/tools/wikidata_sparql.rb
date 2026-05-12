@@ -39,17 +39,31 @@ module GrillMe
                           required: true
       end
 
-      def initialize(connection: nil, cache: nil)
+      def initialize(connection: nil, cache: nil, trace: nil, tag: nil)
         @connection = connection || build_connection
         @cache = cache
+        @trace = trace
+        @tag = tag
       end
 
       def query(sparql:)
+        @trace&.event(type: "tool_call", tag: @tag,
+                      data: { tool: self.class.tool_name, args: { sparql: sparql } })
+        from_cache = true
+        t0 = Time.now
         data = if @cache
-          @cache.fetch(self.class.tool_name, { sparql: sparql }) { do_query(sparql) }
+          @cache.fetch(self.class.tool_name, { sparql: sparql }) do
+            from_cache = false
+            do_query(sparql)
+          end
         else
+          from_cache = false
           do_query(sparql)
         end
+        latency_ms = ((Time.now - t0) * 1000).round
+        @trace&.event(type: "tool_result", tag: @tag,
+                      data: { tool: self.class.tool_name, result: data },
+                      latency_ms: latency_ms, cached: from_cache)
         tool_response(content: JSON.generate(data))
       end
 

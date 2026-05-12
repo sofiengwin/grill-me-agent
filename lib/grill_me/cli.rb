@@ -24,12 +24,16 @@ module GrillMe
     option :temperature, type: :numeric, desc: "LLM temperature (default 0.0, non-zero disables cache)"
     option :no_cache, type: :boolean, desc: "Bypass cache reads and writes"
     option :refresh_cache, type: :boolean, desc: "Bypass cache reads, still write"
+    option :quiet, type: :boolean, desc: "Suppress info-level trace output on stderr (errors only)"
+    option :verbose, type: :boolean, desc: "Enable debug-level trace output (full LLM messages)"
     def research(club_arg = nil)
       overrides = {
         window_years: options[:window_years],
         concurrency: options[:concurrency],
         log_level: options[:log_level],
-        as_of: options[:as_of]
+        as_of: options[:as_of],
+        quiet: options[:quiet],
+        verbose: options[:verbose]
       }.compact
 
       begin
@@ -39,6 +43,7 @@ module GrillMe
         exit(2)
       end
       logger = Log.build(level: config.log_level)
+      trace = Trace.new(level: config.trace_level, sinks: [StderrSink.new])
 
       begin
         config.validate_required_env!
@@ -71,12 +76,15 @@ module GrillMe
         window: window,
         assembler: assembler,
         output: output,
-        cache: cache
+        cache: cache,
+        trace: trace
       )
       runner.run(club: club)
     rescue InputError, SchemaError => e
       warn(e.message)
       exit(3)
+    ensure
+      trace.close if defined?(trace) && trace
     end
 
     desc "clear-cache", "Wipe the .cache/ directory"

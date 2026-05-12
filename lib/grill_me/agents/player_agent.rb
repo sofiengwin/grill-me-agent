@@ -20,10 +20,12 @@ module GrillMe
 
       attr_reader :iterations, :prompt_version
 
-      def initialize(llm:, tools: nil, cache: nil)
+      def initialize(llm:, tools: nil, cache: nil, trace: nil, tag: nil)
         @llm = llm
         @cache = cache
-        @tools = tools || default_tools(cache: cache)
+        @trace = trace
+        @tag = tag
+        @tools = tools || default_tools(cache: cache, trace: trace, tag: tag)
         @iterations = 0
         @prompt_version = nil
       end
@@ -32,20 +34,45 @@ module GrillMe
       # validates against `Schema.player`.
       def run(player_name:, club_name:, club_country: nil)
         instructions = render_prompt(player_name: player_name, club_name: club_name, club_country: club_country)
+        emit(:agent_start, data: { prompt_version: @prompt_version, player_name: player_name, club_name: club_name })
         assistant = build_assistant(instructions: instructions)
         assistant.add_message(role: "user",
                               content: "Begin researching #{player_name}'s stint at #{club_name} now.")
 
-        record = drive(assistant)
-        record["club_name"] ||= club_name
-        record["club_country"] ||= club_country if club_country
-        record
+        t0 = Time.now
+        emit(:llm_request, data: { messages: assistant.messages.map { |m| serialize_message(m) } })
+        begin
+          record = drive(assistant)
+          latency_ms = ((Time.now - t0) * 1000).round
+          last_content = last_assistant_message(assistant)
+          emit(:llm_response, data: { content: last_content.to_s }, latency_ms: latency_ms)
+          record["club_name"] ||= club_name
+          record["club_country"] ||= club_country if club_country
+          emit(:agent_end, data: { status: "success", iterations: @iterations })
+          record
+        rescue StandardError => e
+          emit(:agent_end, data: { status: "error", error: e.class.name, message: e.message,
+                                   iterations: @iterations })
+          raise
+        end
       end
 
       private
 
-      def default_tools(cache:)
-        [GrillMe::Tools::WikipediaPage.new(cache: cache)]
+      def emit(type, data: {}, latency_ms: nil, cached: nil)
+        return unless @trace
+
+        @trace.event(type: type.to_s, tag: @tag, data: data, latency_ms: latency_ms, cached: cached)
+      end
+
+      def serialize_message(message)
+        role = message.respond_to?(:standard_role) ? message.standard_role.to_s : nil
+        content = message.respond_to?(:content) ? message.content.to_s : message.to_s
+        { role: role, content: content }
+      end
+
+      def default_tools(cache:, trace: nil, tag: nil)
+        [GrillMe::Tools::WikipediaPage.new(cache: cache, trace: trace, tag: tag)]
       end
 
       def build_assistant(instructions:)

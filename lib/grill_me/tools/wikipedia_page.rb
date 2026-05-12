@@ -30,17 +30,31 @@ module GrillMe
                          required: true
       end
 
-      def initialize(client: ::Wikipedia, cache: nil)
+      def initialize(client: ::Wikipedia, cache: nil, trace: nil, tag: nil)
         @client = client
         @cache = cache
+        @trace = trace
+        @tag = tag
       end
 
       def fetch(title:)
+        @trace&.event(type: "tool_call", tag: @tag,
+                      data: { tool: self.class.tool_name, args: { title: title } })
+        from_cache = true
+        t0 = Time.now
         data = if @cache
-          @cache.fetch(self.class.tool_name, { title: title }) { do_fetch(title) }
+          @cache.fetch(self.class.tool_name, { title: title }) do
+            from_cache = false
+            do_fetch(title)
+          end
         else
+          from_cache = false
           do_fetch(title)
         end
+        latency_ms = ((Time.now - t0) * 1000).round
+        @trace&.event(type: "tool_result", tag: @tag,
+                      data: { tool: self.class.tool_name, result: data },
+                      latency_ms: latency_ms, cached: from_cache)
         tool_response(content: JSON.generate(data))
       end
 
