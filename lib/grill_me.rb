@@ -1,5 +1,6 @@
 require "grill_me/version"
 require "grill_me/logger"
+require "grill_me/trace"
 
 module GrillMe
   class Error < StandardError; end
