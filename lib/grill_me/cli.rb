@@ -2,10 +2,9 @@ require "thor"
 require "date"
 
 module GrillMe
-  # Thor-based CLI entrypoint. The `research` subcommand runs the
-  # `RosterAgent` to discover players for the club, then sequentially
-  # runs `PlayerAgent` for each discovered player, and finally hands the
-  # results to `Assembler` for the final artifact.
+  # Thor-based CLI entrypoint. The `research` subcommand wires up the
+  # configuration, logger, LLM, window, assembler, and output writer,
+  # then delegates the per-club pipeline to `Runner`.
   class CLI < Thor
     package_name "grill-me"
 
@@ -53,35 +52,19 @@ module GrillMe
         api_key: config.openai_api_key
       )
 
-      roster_agent = Agents::RosterAgent.new(
-        llm: llm,
-        tools: [Tools::WikipediaSearch.new, Tools::WikipediaPage.new]
-      )
-      roster = roster_agent.run(club_name: club.name, club_country: club.country)
-      logger.info("roster discovered club=#{club.name.inspect} size=#{roster.size}")
-
-      players = []
-      failed_players = []
-      roster.each do |player|
-        player_name = player["name"]
-        player_agent = Agents::PlayerAgent.new(llm: llm, tools: [Tools::WikipediaPage.new])
-        logger.info("player agent name=#{player_name.inspect} club=#{club.name.inspect}")
-        begin
-          record = player_agent.run(player_name: player_name, club_name: club.name, club_country: club.country)
-          players << record
-        rescue Agents::PlayerAgent::AgentError => e
-          logger.warn("player agent failed name=#{player_name.inspect} reason=#{e.message}")
-          failed_players << { "name" => player_name, "reason" => e.message }
-        end
-      end
-
       window = GrillMe::Window.new(as_of: config.as_of_date || Date.today, years: config.window_years)
       assembler = Assembler.new(config: config, window: window)
-      artifact = assembler.build(club: club, players: players, failed_players: failed_players)
-      Schema.validate_club!(artifact)
+      output = Output.new(logger: logger)
 
-      path = Output.new(logger: logger).write(artifact: artifact, destination: options[:out])
-      logger.info("done club=#{club.name.inspect} output=#{path}")
+      runner = Runner.new(
+        config: config,
+        logger: logger,
+        llm: llm,
+        window: window,
+        assembler: assembler,
+        output: output
+      )
+      runner.run(club: club)
     rescue InputError, SchemaError => e
       warn(e.message)
       exit(3)

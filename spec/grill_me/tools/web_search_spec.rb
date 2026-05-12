@@ -148,4 +148,49 @@ RSpec.describe GrillMe::Tools::WebSearch do
       unthrottled.search(query: "henry")
     end
   end
+
+  context "under concurrent load" do
+    before do
+      stub_request(:get, api_url).to_return(status: 200, body: brave_body([]))
+    end
+
+    it "enforces the qps cap across threads" do
+      qps = 10.0
+      threads_count = 5
+      calls_per_thread = 3
+      total_calls = threads_count * calls_per_thread
+
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      threads = Array.new(threads_count) do
+        Thread.new do
+          tool = described_class.new(qps: qps)
+          calls_per_thread.times { tool.search(query: "henry") }
+        end
+      end
+      threads.each(&:join)
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+
+      min_expected = (total_calls - 1) / qps * 0.8
+      expect(elapsed).to be >= min_expected
+      expect(elapsed).to be >= 1.0
+    end
+
+    it "does not allow bursts above qps" do
+      qps = 2.0
+      threads_count = 3
+      calls_per_thread = 2
+
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      threads = Array.new(threads_count) do
+        Thread.new do
+          tool = described_class.new(qps: qps)
+          calls_per_thread.times { tool.search(query: "henry") }
+        end
+      end
+      threads.each(&:join)
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+
+      expect(elapsed).to be >= 2.0
+    end
+  end
 end

@@ -13,12 +13,13 @@ module GrillMe
       window_years: 20,
       concurrency: 5,
       log_level: "info",
-      brave_qps: 1.0
+      brave_qps: 1.0,
+      per_club_timeout_s: 600
     }.freeze
 
     AS_OF_PATTERN = /^\d{4}-\d{2}-\d{2}$/.freeze
 
-    attr_reader :window_years, :concurrency, :log_level, :brave_qps, :as_of
+    attr_reader :window_years, :concurrency, :log_level, :brave_qps, :as_of, :per_club_timeout_s
 
     def initialize(env: ENV, overrides: {})
       @env = env
@@ -26,6 +27,7 @@ module GrillMe
       @concurrency = pick(:concurrency, overrides, "CONCURRENCY", :to_i)
       @log_level = pick(:log_level, overrides, "LOG_LEVEL", :to_s)
       @brave_qps = pick(:brave_qps, overrides, "BRAVE_QPS", :to_f)
+      @per_club_timeout_s = pick(:per_club_timeout_s, overrides, "PER_CLUB_TIMEOUT_S", :to_i)
       @as_of = pick_optional(:as_of, overrides, "AS_OF")
       validate_brave_qps!
       validate_as_of!
