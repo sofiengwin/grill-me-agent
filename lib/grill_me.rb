@@ -7,8 +7,10 @@ module GrillMe
   class InputError < Error; end
   class SchemaError < Error; end
   class WindowError < Error; end
+  class CacheError < Error; end
 end
 
+require "grill_me/cache"
 require "grill_me/window"
 require "grill_me/config"
 require "grill_me/input"

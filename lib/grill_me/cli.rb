@@ -21,6 +21,9 @@ module GrillMe
     option :log_level, type: :string, desc: "debug|info|warn|error"
     option :model, type: :string, desc: "OpenAI chat model (default gpt-4o-mini)"
     option :as_of, type: :string, desc: "Override reference date YYYY-MM-DD"
+    option :temperature, type: :numeric, desc: "LLM temperature (default 0.0, non-zero disables cache)"
+    option :no_cache, type: :boolean, desc: "Bypass cache reads and writes"
+    option :refresh_cache, type: :boolean, desc: "Bypass cache reads, still write"
     def research(club_arg = nil)
       overrides = {
         window_years: options[:window_years],
@@ -47,9 +50,14 @@ module GrillMe
       club = Input.from_args(name: club_arg || options[:club], country: options[:country])
       logger.info("starting research club=#{club.name.inspect} country=#{club.country.inspect}")
 
+      temperature = options[:temperature] || Llm::DEFAULT_TEMPERATURE
+      cache = options[:no_cache] ? nil : Cache.new(no_cache: false, refresh: options[:refresh_cache] || false)
+
       llm = Llm.build(
         model: options[:model] || Llm::DEFAULT_MODEL,
-        api_key: config.openai_api_key
+        temperature: temperature,
+        api_key: config.openai_api_key,
+        cache: cache
       )
 
       window = GrillMe::Window.new(as_of: config.as_of_date || Date.today, years: config.window_years)
@@ -62,12 +70,20 @@ module GrillMe
         llm: llm,
         window: window,
         assembler: assembler,
-        output: output
+        output: output,
+        cache: cache
       )
       runner.run(club: club)
     rescue InputError, SchemaError => e
       warn(e.message)
       exit(3)
+    end
+
+    desc "clear-cache", "Wipe the .cache/ directory"
+    def clear_cache
+      cache = GrillMe::Cache.new
+      cache.clear!
+      puts "Cache cleared."
     end
 
     desc "version", "Print the gem version"

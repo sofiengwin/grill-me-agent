@@ -31,11 +31,23 @@ module GrillMe
                          required: true
       end
 
-      def initialize(connection: nil)
+      def initialize(connection: nil, cache: nil)
         @connection = connection || default_connection
+        @cache = cache
       end
 
       def search(query:)
+        data = if @cache
+          @cache.fetch(self.class.tool_name, { query: query }) { do_search(query) }
+        else
+          do_search(query)
+        end
+        tool_response(content: JSON.generate(data))
+      end
+
+      private
+
+      def do_search(query)
         response = @connection.get(API_URL) do |req|
           req.params["action"] = "opensearch"
           req.params["format"] = "json"
@@ -44,16 +56,13 @@ module GrillMe
         end
 
         unless response.success?
-          return tool_response(content: JSON.generate("error" => "http #{response.status}", "query" => query))
+          return { "error" => "http #{response.status}", "query" => query }
         end
 
-        results = parse_results(response.body)
-        tool_response(content: JSON.generate(results))
+        parse_results(response.body)
       rescue Faraday::Error, JSON::ParserError => e
-        tool_response(content: JSON.generate("error" => e.message, "query" => query))
+        { "error" => e.message, "query" => query }
       end
-
-      private
 
       def default_connection
         Faraday.new do |f|

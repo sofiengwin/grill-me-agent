@@ -34,37 +34,47 @@ module GrillMe
                        required: true
       end
 
-      def initialize(connection: nil)
+      def initialize(connection: nil, cache: nil)
         @connection = connection || default_connection
+        @cache = cache
       end
 
       def fetch(url:)
+        data = if @cache
+          @cache.fetch(self.class.tool_name, { url: url }) { do_fetch(url) }
+        else
+          do_fetch(url)
+        end
+        tool_response(content: JSON.generate(data))
+      end
+
+      private
+
+      def do_fetch(url)
         response = @connection.get(url)
 
         unless response.success?
-          return error_response("http_#{response.status}", url)
+          return error_payload("http_#{response.status}", url)
         end
 
         title, text = parse_html(response.body.to_s)
         truncated_text, was_truncated = truncate(text)
         text_payload = was_truncated ? "#{truncated_text}\n[...truncated]" : truncated_text
 
-        tool_response(content: JSON.generate(
+        {
           "url" => url,
           "title" => title,
           "text" => text_payload
-        ))
+        }
       rescue Faraday::TimeoutError => e
-        error_response("timeout", url, e.message)
+        error_payload("timeout", url, e.message)
       rescue Faraday::ConnectionFailed => e
-        error_response("connection_failed", url, e.message)
+        error_payload("connection_failed", url, e.message)
       rescue Faraday::Error => e
-        error_response("faraday_error", url, e.message)
+        error_payload("faraday_error", url, e.message)
       rescue StandardError => e
-        error_response("parse_error", url, e.message)
+        error_payload("parse_error", url, e.message)
       end
-
-      private
 
       def default_connection
         Faraday.new do |f|
@@ -105,10 +115,10 @@ module GrillMe
         [str[0, limit], true]
       end
 
-      def error_response(code, url, message = nil)
+      def error_payload(code, url, message = nil)
         payload = { "error" => code, "url" => url }
         payload["message"] = message if message
-        tool_response(content: JSON.generate(payload))
+        payload
       end
     end
   end

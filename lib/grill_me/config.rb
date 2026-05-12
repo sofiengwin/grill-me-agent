@@ -14,12 +14,16 @@ module GrillMe
       concurrency: 5,
       log_level: "info",
       brave_qps: 1.0,
-      per_club_timeout_s: 600
+      per_club_timeout_s: 600,
+      temperature: 0.0,
+      no_cache: false,
+      refresh_cache: false
     }.freeze
 
     AS_OF_PATTERN = /^\d{4}-\d{2}-\d{2}$/.freeze
 
-    attr_reader :window_years, :concurrency, :log_level, :brave_qps, :as_of, :per_club_timeout_s
+    attr_reader :window_years, :concurrency, :log_level, :brave_qps, :as_of, :per_club_timeout_s,
+                :temperature, :no_cache, :refresh_cache
 
     def initialize(env: ENV, overrides: {})
       @env = env
@@ -28,6 +32,9 @@ module GrillMe
       @log_level = pick(:log_level, overrides, "LOG_LEVEL", :to_s)
       @brave_qps = pick(:brave_qps, overrides, "BRAVE_QPS", :to_f)
       @per_club_timeout_s = pick(:per_club_timeout_s, overrides, "PER_CLUB_TIMEOUT_S", :to_i)
+      @temperature = pick(:temperature, overrides, "TEMPERATURE", :to_f)
+      @no_cache = pick_bool(:no_cache, overrides, "NO_CACHE") || false
+      @refresh_cache = pick_bool(:refresh_cache, overrides, "REFRESH_CACHE") || false
       @as_of = pick_optional(:as_of, overrides, "AS_OF")
       validate_brave_qps!
       validate_as_of!
@@ -82,6 +89,15 @@ module GrillMe
       return nil if raw.nil? || raw.to_s.empty?
 
       raw.to_s
+    end
+
+    def pick_bool(key, overrides, env_suffix)
+      raw = overrides[key] || @env["GRILL_ME_#{env_suffix}"]
+      return false if raw.nil? || raw.to_s.empty?
+      return true if raw == true
+      return false if raw == false
+
+      %w[1 true yes].include?(raw.to_s.downcase)
     end
 
     def friendly_missing_message(missing)

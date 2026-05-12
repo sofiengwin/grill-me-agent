@@ -39,11 +39,23 @@ module GrillMe
                           required: true
       end
 
-      def initialize(connection: nil)
+      def initialize(connection: nil, cache: nil)
         @connection = connection || build_connection
+        @cache = cache
       end
 
       def query(sparql:)
+        data = if @cache
+          @cache.fetch(self.class.tool_name, { sparql: sparql }) { do_query(sparql) }
+        else
+          do_query(sparql)
+        end
+        tool_response(content: JSON.generate(data))
+      end
+
+      private
+
+      def do_query(sparql)
         response = @connection.post(ENDPOINT) do |req|
           req.headers["Accept"] = "application/sparql-results+json"
           req.headers["User-Agent"] = USER_AGENT
@@ -52,28 +64,25 @@ module GrillMe
         end
 
         unless response.success?
-          return error_response("HTTP #{response.status}", response.body.to_s[0, 500])
+          return error_payload("HTTP #{response.status}", response.body.to_s[0, 500])
         end
 
         rows = parse_bindings(response.body)
         truncated = rows.length > MAX_ROWS
-        payload = {
+        {
           "rows" => rows.first(MAX_ROWS),
           "row_count" => [rows.length, MAX_ROWS].min,
           "truncated" => truncated
         }
-        tool_response(content: JSON.generate(payload))
       rescue Faraday::TimeoutError => e
-        error_response("timeout", e.message)
+        error_payload("timeout", e.message)
       rescue Faraday::ConnectionFailed => e
-        error_response("connection_failed", e.message)
+        error_payload("connection_failed", e.message)
       rescue Faraday::Error => e
-        error_response("network_error", e.message)
+        error_payload("network_error", e.message)
       rescue JSON::ParserError => e
-        error_response("invalid_response", e.message)
+        error_payload("invalid_response", e.message)
       end
-
-      private
 
       def build_connection
         Faraday.new do |conn|
@@ -97,10 +106,10 @@ module GrillMe
         end
       end
 
-      def error_response(error, detail = nil)
+      def error_payload(error, detail = nil)
         payload = { "error" => error }
         payload["detail"] = detail if detail && !detail.empty?
-        tool_response(content: JSON.generate(payload))
+        payload
       end
     end
   end
