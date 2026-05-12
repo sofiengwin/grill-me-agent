@@ -30,11 +30,22 @@ module GrillMe
                          required: true
       end
 
-      def initialize(client: ::Wikipedia)
+      def initialize(client: ::Wikipedia, cache: nil)
         @client = client
+        @cache = cache
       end
 
       def fetch(title:)
+        if @cache
+          @cache.fetch(self.class.tool_name, { title: title }) { perform_fetch(title) }
+        else
+          perform_fetch(title)
+        end
+      end
+
+      private
+
+      def perform_fetch(title)
         page = @client.find(title)
         if page.nil? || page.text.nil? || page.text.empty?
           return tool_response(content: JSON.generate("error" => "page not found", "title" => title))
@@ -49,8 +60,6 @@ module GrillMe
         }
         tool_response(content: JSON.generate(payload))
       end
-
-      private
 
       def truncate(str, limit = MAX_CONTENT_CHARS)
         return str if str.length <= limit

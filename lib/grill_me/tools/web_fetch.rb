@@ -34,11 +34,22 @@ module GrillMe
                        required: true
       end
 
-      def initialize(connection: nil)
+      def initialize(connection: nil, cache: nil)
         @connection = connection || default_connection
+        @cache = cache
       end
 
       def fetch(url:)
+        if @cache
+          @cache.fetch(self.class.tool_name, { url: url }) { perform_fetch(url) }
+        else
+          perform_fetch(url)
+        end
+      end
+
+      private
+
+      def perform_fetch(url)
         response = @connection.get(url)
 
         unless response.success?
@@ -63,8 +74,6 @@ module GrillMe
       rescue StandardError => e
         error_response("parse_error", url, e.message)
       end
-
-      private
 
       def default_connection
         Faraday.new do |f|

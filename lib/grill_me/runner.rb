@@ -6,13 +6,14 @@ module GrillMe
   # pool of PlayerAgent runs, enforces a per-club wall-clock timeout, and
   # hands the assembled artifact to the Output writer.
   class Runner
-    def initialize(config:, logger:, llm:, window:, assembler:, output:)
+    def initialize(config:, logger:, llm:, window:, assembler:, output:, cache: nil)
       @config = config
       @logger = logger
       @llm = llm
       @window = window
       @assembler = assembler
       @output = output
+      @cache = cache
     end
 
     def run(club:)
@@ -39,10 +40,7 @@ module GrillMe
     private
 
     def discover_roster(club:)
-      roster_agent = Agents::RosterAgent.new(
-        llm: @llm,
-        tools: [Tools::WikipediaSearch.new, Tools::WikipediaPage.new]
-      )
+      roster_agent = Agents::RosterAgent.new(llm: @llm, cache: @cache)
       roster = roster_agent.run(club_name: club.name, club_country: club.country)
       @logger.info("roster discovered club=#{club.name.inspect} size=#{roster.size}")
       roster
@@ -52,10 +50,11 @@ module GrillMe
       player_name = player["name"]
       logger = @logger
       llm = @llm
+      cache = @cache
       Concurrent::Future.execute(executor: pool) do
         tag = "#{club.name}/player:#{player_name}"
         logger.info("[#{tag}] starting player agent")
-        agent = Agents::PlayerAgent.new(llm: llm, tools: [Tools::WikipediaPage.new])
+        agent = Agents::PlayerAgent.new(llm: llm, cache: cache)
         begin
           record = agent.run(
             player_name: player_name,

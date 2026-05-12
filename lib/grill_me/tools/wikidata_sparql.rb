@@ -39,11 +39,22 @@ module GrillMe
                           required: true
       end
 
-      def initialize(connection: nil)
+      def initialize(connection: nil, cache: nil)
         @connection = connection || build_connection
+        @cache = cache
       end
 
       def query(sparql:)
+        if @cache
+          @cache.fetch(self.class.tool_name, { sparql: sparql }) { perform_query(sparql) }
+        else
+          perform_query(sparql)
+        end
+      end
+
+      private
+
+      def perform_query(sparql)
         response = @connection.post(ENDPOINT) do |req|
           req.headers["Accept"] = "application/sparql-results+json"
           req.headers["User-Agent"] = USER_AGENT
@@ -72,8 +83,6 @@ module GrillMe
       rescue JSON::ParserError => e
         error_response("invalid_response", e.message)
       end
-
-      private
 
       def build_connection
         Faraday.new do |conn|

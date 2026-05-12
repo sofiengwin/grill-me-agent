@@ -20,9 +20,10 @@ module GrillMe
 
       attr_reader :iterations, :prompt_version
 
-      def initialize(llm:, tools: nil)
+      def initialize(llm:, tools: nil, cache: nil)
         @llm = llm
-        @tools = tools || [GrillMe::Tools::WikipediaPage.new]
+        @cache = cache
+        @tools = tools || default_tools(cache: cache)
         @iterations = 0
         @prompt_version = nil
       end
@@ -42,6 +43,10 @@ module GrillMe
       end
 
       private
+
+      def default_tools(cache:)
+        [GrillMe::Tools::WikipediaPage.new(cache: cache)]
+      end
 
       def build_assistant(instructions:)
         agent = self

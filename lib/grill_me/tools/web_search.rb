@@ -49,15 +49,26 @@ module GrillMe
                                required: false
       end
 
-      def initialize(api_key: nil, qps: nil, connection: nil)
+      def initialize(api_key: nil, qps: nil, connection: nil, cache: nil)
         @api_key = api_key || ENV["BRAVE_SEARCH_API_KEY"]
         @qps = qps || default_qps
         @connection = connection || build_connection
+        @cache = cache
       end
 
       def search(query:, max_results: DEFAULT_MAX_RESULTS)
         count = clamp_count(max_results)
 
+        if @cache
+          @cache.fetch(self.class.tool_name, { query: query, count: count }) { perform_search(query, count) }
+        else
+          perform_search(query, count)
+        end
+      end
+
+      private
+
+      def perform_search(query, count)
         if @api_key.nil? || @api_key.to_s.strip.empty?
           return error_response("missing_api_key", "BRAVE_SEARCH_API_KEY not set")
         end
@@ -86,8 +97,6 @@ module GrillMe
       rescue JSON::ParserError => e
         error_response("invalid_response", e.message)
       end
-
-      private
 
       def clamp_count(max_results)
         n = max_results.to_i
