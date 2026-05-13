@@ -49,21 +49,35 @@ module GrillMe
                                required: false
       end
 
-      def initialize(api_key: nil, qps: nil, connection: nil, cache: nil)
+      def initialize(api_key: nil, qps: nil, connection: nil, cache: nil, trace: nil, tag: nil)
         @api_key = api_key || ENV["BRAVE_SEARCH_API_KEY"]
         @qps = qps || default_qps
         @connection = connection || build_connection
         @cache = cache
+        @trace = trace
+        @tag = tag
       end
 
       def search(query:, max_results: DEFAULT_MAX_RESULTS)
         count = clamp_count(max_results)
 
+        @trace&.event(type: "tool_call", tag: @tag,
+                      data: { tool: self.class.tool_name, args: { query: query, max_results: count } })
+        from_cache = true
+        t0 = Time.now
         data = if @cache
-          @cache.fetch(self.class.tool_name, { query: query, count: count }) { do_search(query, count) }
+          @cache.fetch(self.class.tool_name, { query: query, count: count }) do
+            from_cache = false
+            do_search(query, count)
+          end
         else
+          from_cache = false
           do_search(query, count)
         end
+        latency_ms = ((Time.now - t0) * 1000).round
+        @trace&.event(type: "tool_result", tag: @tag,
+                      data: { tool: self.class.tool_name, result: data },
+                      latency_ms: latency_ms, cached: from_cache)
         tool_response(content: JSON.generate(data))
       end
 

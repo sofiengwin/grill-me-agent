@@ -1,4 +1,5 @@
 require "concurrent"
+require "fileutils"
 
 module GrillMe
   # Orchestrates the per-club research pipeline: runs the RosterAgent to
@@ -6,7 +7,7 @@ module GrillMe
   # pool of PlayerAgent runs, enforces a per-club wall-clock timeout, and
   # hands the assembled artifact to the Output writer.
   class Runner
-    def initialize(config:, logger:, llm:, window:, assembler:, output:, cache: nil)
+    def initialize(config:, logger:, llm:, window:, assembler:, output:, cache: nil, trace: nil)
       @config = config
       @logger = logger
       @llm = llm
@@ -14,13 +15,19 @@ module GrillMe
       @assembler = assembler
       @output = output
       @cache = cache
+      @trace = trace
     end
 
     def run(club:)
-      roster = discover_roster(club: club)
+      slug = Output.slug_for_club(name: club.name, country: club.country)
+      trace_dir = ensure_trace_dir(slug: slug)
+
+      roster = discover_roster(club: club, slug: slug, trace_dir: trace_dir)
 
       pool = Concurrent::FixedThreadPool.new(@config.concurrency)
-      futures = roster.map { |player| submit_player(pool: pool, club: club, player: player) }
+      futures = roster.map do |player|
+        submit_player(pool: pool, club: club, player: player, slug: slug, trace_dir: trace_dir)
+      end
 
       wait_for_futures(futures)
 
@@ -39,34 +46,78 @@ module GrillMe
 
     private
 
-    def discover_roster(club:)
-      roster_agent = Agents::RosterAgent.new(llm: @llm, cache: @cache)
+    def discover_roster(club:, slug:, trace_dir:)
+      agent_trace = build_agent_trace(trace_dir, "roster.jsonl")
+      tag = "#{slug}/roster"
+      roster_agent = Agents::RosterAgent.new(llm: @llm, cache: @cache, trace: agent_trace, tag: tag)
       roster = roster_agent.run(club_name: club.name, club_country: club.country)
       @logger.info("roster discovered club=#{club.name.inspect} size=#{roster.size}")
       roster
+    ensure
+      agent_trace&.close
     end
 
-    def submit_player(pool:, club:, player:)
+    def submit_player(pool:, club:, player:, slug:, trace_dir:)
       player_name = player["name"]
+      player_slug = Output.transliterate(player_name)
       logger = @logger
       llm = @llm
       cache = @cache
+      runner = self
       Concurrent::Future.execute(executor: pool) do
-        tag = "#{club.name}/player:#{player_name}"
-        logger.info("[#{tag}] starting player agent")
-        agent = Agents::PlayerAgent.new(llm: llm, cache: cache)
+        log_tag = "#{club.name}/player:#{player_name}"
+        trace_tag = "#{slug}/player:#{player_slug}"
+        agent_trace = runner.send(:build_agent_trace, trace_dir, "player-#{player_slug}.jsonl")
+        logger.info("[#{log_tag}] starting player agent")
+        agent = Agents::PlayerAgent.new(llm: llm, cache: cache, trace: agent_trace, tag: trace_tag)
         begin
           record = agent.run(
             player_name: player_name,
             club_name: club.name,
             club_country: club.country
           )
-          logger.info("[#{tag}] success")
+          logger.info("[#{log_tag}] success")
           { type: :success, record: record }
         rescue Agents::PlayerAgent::AgentError => e
-          logger.warn("[#{tag}] failed: #{e.message}")
+          logger.warn("[#{log_tag}] failed: #{e.message}")
           { type: :failure, name: player_name, reason: e.message }
+        ensure
+          agent_trace&.close
         end
+      end
+    end
+
+    # Build a per-agent Trace that shares the base trace's sinks (typically
+    # an StderrSink) and adds a fresh JsonlSink writing to the per-agent
+    # transcript file. Returns nil when no base trace is configured so the
+    # agent's emit calls become no-ops.
+    def build_agent_trace(trace_dir, filename)
+      return nil if @trace.nil? || trace_dir.nil?
+
+      path = File.join(trace_dir, filename)
+      sinks = Array(@trace.sinks) + [GrillMe::JsonlSink.new(path)]
+      GrillMe::Trace.new(level: @trace.level, sinks: sinks)
+    end
+
+    def ensure_trace_dir(slug:)
+      return nil if @trace.nil?
+
+      base = trace_base_dir
+      return nil if base.nil?
+
+      dir = File.join(base, slug, "_traces")
+      FileUtils.mkdir_p(dir)
+      dir
+    end
+
+    def trace_base_dir
+      dest = output_destination
+      return nil if dest.nil? || dest.empty?
+
+      if dest.end_with?("/") || (File.exist?(dest) && File.directory?(dest))
+        dest
+      else
+        File.dirname(dest)
       end
     end
 

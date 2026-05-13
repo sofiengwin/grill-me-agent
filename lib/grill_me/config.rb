@@ -17,13 +17,15 @@ module GrillMe
       per_club_timeout_s: 600,
       temperature: 0.0,
       no_cache: false,
-      refresh_cache: false
+      refresh_cache: false,
+      quiet: false,
+      verbose: false
     }.freeze
 
     AS_OF_PATTERN = /^\d{4}-\d{2}-\d{2}$/.freeze
 
     attr_reader :window_years, :concurrency, :log_level, :brave_qps, :as_of, :per_club_timeout_s,
-                :temperature, :no_cache, :refresh_cache
+                :temperature, :no_cache, :refresh_cache, :quiet, :verbose
 
     def initialize(env: ENV, overrides: {})
       @env = env
@@ -35,9 +37,20 @@ module GrillMe
       @temperature = pick(:temperature, overrides, "TEMPERATURE", :to_f)
       @no_cache = pick_bool(:no_cache, overrides, "NO_CACHE") || false
       @refresh_cache = pick_bool(:refresh_cache, overrides, "REFRESH_CACHE") || false
+      @quiet = pick_bool(:quiet, overrides, "QUIET") || false
+      @verbose = pick_bool(:verbose, overrides, "VERBOSE") || false
       @as_of = pick_optional(:as_of, overrides, "AS_OF")
       validate_brave_qps!
       validate_as_of!
+    end
+
+    # Returns the Trace log level symbol implied by quiet/verbose flags.
+    # quiet wins over verbose; default is :info.
+    def trace_level
+      return :quiet if @quiet
+      return :debug if @verbose
+
+      :info
     end
 
     def as_of_date
